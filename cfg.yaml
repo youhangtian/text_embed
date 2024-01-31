@@ -1,0 +1,11 @@
+output_dir: m3e_ft
+st_model: /home/tian/models/m3e
+ft_dataset: labelling/my_dataset1
+
+mteb_zh_eval: True
+
+epochs: 2
+batch_size: 4
+weight_decay: 1.e-3
+seed: 40
+log_freq: 100
