@@ -1,28 +1,24 @@
 import torch 
 from torch.utils.data import Dataset, DataLoader 
-from dataclasses import dataclass, fields 
 
-class RecordType:
-    Pair = 'pair'
-    Triplet = 'triplet'
-    Scored = 'scored' 
-
-@dataclass(slots=True)
 class PairRecord:
     text: str 
     text_pos: str 
 
-@dataclass(slots=True)
 class TripletRecord:
     text: str 
     text_pos: str 
     text_neg: str 
 
-@dataclass(slots=True)
 class ScoredRecord:
     sentence1: str 
     sentence2: str 
     label: float 
+
+class RecordType:
+    Pair = 'pair'
+    Triplet = 'triplet'
+    Scored = 'scored' 
 
 record_cls_map = {
     RecordType.Pair: PairRecord, 
@@ -32,7 +28,7 @@ record_cls_map = {
 
 def get_type(record):
     for type, cls in record_cls_map.items():
-        names = [field.name for field in fields(cls)]
+        names = list(filter(lambda x: not x.startswith('_'), dir(cls)))
         if all(name in record for name in names):
             return type 
     raise ValueError(f'Unknown record type: record: {record}')
