@@ -1,44 +1,11 @@
 import torch 
 from torch.utils.data import Dataset, DataLoader 
 
-class PairRecord:
-    text: str 
-    text_pos: str 
-
-class TripletRecord:
-    text: str 
-    text_pos: str 
-    text_neg: str 
-
-class ScoredRecord:
-    sentence1: str 
-    sentence2: str 
-    label: float 
-
-class RecordType:
-    Pair = 'pair'
-    Triplet = 'triplet'
-    Scored = 'scored' 
-
-record_cls_map = {
-    RecordType.Pair: PairRecord, 
-    RecordType.Triplet: TripletRecord, 
-    RecordType.Scored: ScoredRecord,
-}
-
-def get_type(record):
-    for type, cls in record_cls_map.items():
-        names = list(filter(lambda x: not x.startswith('_'), dir(cls)))
-        if all(name in record for name in names):
-            return type 
-    raise ValueError(f'Unknown record type: record: {record}')
-
 
 class DataCollator:
-    def __init__(self, tokenizer, max_length, record_type):
+    def __init__(self, tokenizer, max_length):
         self.tokenizer = tokenizer 
         self.max_length = max_length 
-        self.record_type = record_type 
 
     def _ids_tensor(self, texts):
         text_ids = self.tokenizer(
@@ -51,70 +18,43 @@ class DataCollator:
         return torch.Tensor(text_ids)
 
     def __call__(self, records):
-        if self.record_type == RecordType.Pair:
-            texts = [record.text for record in records]
-            text_ids = self._ids_tensor(texts)
-            
-            texts_pos = [record.text_pos for record in records]
-            text_pos_ids = self._ids_tensor(texts_pos)
+        texts = [record['text'] for record in records]
+        text_ids = self._ids_tensor(texts)
 
-            return {
-                'text_ids': text_ids,
-                'text_pos_ids': text_pos_ids,
-            }
-        elif self.record_type == RecordType.Triplet:
-            texts = [record.text for record in records]
-            text_ids = self._ids_tensor(texts)
+        texts_pos = [record['text_pos'] for record in records]
+        text_pos_ids = self._ids_tensor(texts_pos)
 
-            texts_pos = [record.text_pos for record in records]
-            text_pos_ids = self._ids_tensor(texts_pos)
-
-            texts_neg = [record.text_neg for record in records]
+        if 'text_neg' in records[0].keys():
+            texts_neg = [record['text_neg'] for record in records]
             text_neg_ids = self._ids_tensor(texts_neg)
-
             return {
                 'text_ids': text_ids,
                 'text_pos_ids': text_pos_ids,
                 'text_neg_ids': text_neg_ids,
             }
-        elif self.record_type == RecordType.Scored:
-            texts = [record.sentence1 for record in records]
-            text_ids = self._ids_tensor(texts)
-
-            texts_pair = [record.sentence2 for record in records]
-            text_pair_ids = self._ids_tensor(texts_pair)
-
-            labels = [record.label for record in records]
+        elif 'label' in records[0].keys():
+            labels = [record['label'] for record in records]
             labels = torch.tensor(labels, dtype=torch.float32)
-
             return {
                 'text_ids': text_ids,
-                'text_pair_ids': text_pair_ids,
+                'text_pos_ids': text_pos_ids,
                 'labels': labels,
+            }
+        else:
+            return {
+                'text_ids': text_ids,
+                'text_pos_ids': text_pos_ids,
             }
 
 
-class TorchDataset(Dataset):
-    def __init__(self, dataset, record_type):
-        self.dataset = dataset 
-        self.record_cls = record_cls_map[record_type]
-
-    def __getitem__(self, index):
-        record = self.dataset[index]
-        return self.record_cls(**record) 
-    
-    def __len__(self):
-        return len(self.dataset) 
-    
 def create_dataloader(dataset, 
-                      record_type,
                       tokenizer, 
                       batch_size,
                       max_length=512,
                       num_workers=0,
                       drop_last=False,
                       shuffle=False):
-    data_collator = DataCollator(tokenizer, max_length, record_type)
+    data_collator = DataCollator(tokenizer, max_length)
     data_loader = DataLoader(
         dataset, 
         batch_size=batch_size, 
@@ -135,25 +75,19 @@ def get_dataloader(dataset, tokenizer, batch_size=256):
     else:
         val_dataset = None 
 
-    record_type = get_type(train_dataset[0])
-    train_ds = TorchDataset(train_dataset, record_type) 
-    val_ds = TorchDataset(val_dataset, record_type) if val_dataset else None 
-
     train_dl = create_dataloader(
-        train_ds, 
-        record_type,
+        train_dataset, 
         tokenizer,
         batch_size,
         shuffle=True, 
         drop_last=True
     )
     val_dl = create_dataloader(
-        val_ds, 
-        record_type,
+        val_dataset, 
         tokenizer,
         batch_size,
         shuffle=False, 
         drop_last=False
-    ) if val_ds else None 
+    ) if val_dataset else None 
 
-    return train_dl, val_dl, record_type 
+    return train_dl, val_dl 

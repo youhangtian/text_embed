@@ -1,5 +1,4 @@
 import torch 
-from data import RecordType 
 
 class CoSentLoss(torch.nn.Module):
     def __init__(self, temp=0.05):
@@ -54,10 +53,9 @@ class CoSentLoss(torch.nn.Module):
     
 
 class TorchModel(torch.nn.Module):
-    def __init__(self, model, record_type, temp=0.05):
+    def __init__(self, model, temp=0.05):
         super().__init__()
         self.model = model 
-        self.record_type = record_type 
         self.criterion = CoSentLoss(temp)
 
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -72,20 +70,14 @@ class TorchModel(torch.nn.Module):
         return output['sentence_embedding']
 
     def forward(self, batch):
-        if self.record_type == RecordType.Pair:
-            embeddings1 = self._get_embeddings(batch['text_ids'])
-            embeddings2 = self._get_embeddings(batch['text_pos_ids'])
-            loss = self.criterion(embeddings1, embeddings2)
-        elif self.record_type == RecordType.Triplet:
-            embeddings1 = self._get_embeddings(batch['text_ids'])
-            embeddings2 = self._get_embeddings(batch['text_pos_ids'])
+        embeddings1 = self._get_embeddings(batch['text_ids'])
+        embeddings2 = self._get_embeddings(batch['text_pos_ids'])
+        if 'text_neg_ids' in batch.keys():
             embeddings3 = self._get_embeddings(batch['text_neg_ids'])
-            loss = self.criterion(embeddings1, embeddings2, embeddings3=embeddings3)
-        elif self.record_type == RecordType.Scored:
-            embeddings1 = self._get_embeddings(batch['text_ids'])
-            embeddings2 = self._get_embeddings(batch['text_pair_ids'])
+            loss = self.criterion(embeddings1, embeddings2, embeddings=embeddings3)
+        elif 'labels' in batch.keys():
             loss = self.criterion(embeddings1, embeddings2, labels=batch['labels'])
         else:
-            loss = None 
+            loss = self.criterion(embeddings1, embeddings2)
 
         return {'loss': loss} 

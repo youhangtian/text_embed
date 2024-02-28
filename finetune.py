@@ -20,9 +20,9 @@ model0[1].pooling_mode_cls_token = True
 model0[1].pooling_mode_mean_tokens = False 
 
 dataset = load_from_disk(cfg.ft_dataset)
-train_dl, val_dl, record_type = get_dataloader(dataset, model0.tokenizer, batch_size=cfg.batch_size)
+train_dl, val_dl = get_dataloader(dataset, model0.tokenizer, batch_size=cfg.batch_size)
 
-torch_model = TorchModel(model0, record_type)
+torch_model = TorchModel(model0)
 
 epochs = cfg.epochs
 
